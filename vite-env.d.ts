@@ -104,6 +104,14 @@ export function CabinetIcon({ icon, size = 44 }: Props) {
           <circle cx="36" cy="28" r="1.6" fill="currentColor" />
         </svg>
       );
+    case "quiz":
+      return (
+        <svg {...common}>
+          <path d="M10 8 H38 a2 2 0 0 1 2 2 V30 a2 2 0 0 1 -2 2 H22 l-8 8 V32 H10 a2 2 0 0 1 -2 -2 V10 a2 2 0 0 1 2 -2 Z" />
+          <path d="M20 17 a4 4 0 1 1 5 4 c-1 1-1.5 1.6-1.5 3" />
+          <circle cx="23.5" cy="27" r="1.4" fill="currentColor" />
+        </svg>
+      );
     default:
       return null;
   }

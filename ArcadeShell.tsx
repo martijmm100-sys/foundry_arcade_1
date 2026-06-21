@@ -1,6 +1,7 @@
 // Shared types for the arcade hub and games.
 
 export type GameId =
+  | "foundry-trivia"
   | "defect-hunter"
   | "molten-pinball"
   | "scrap-defense"
@@ -39,7 +40,8 @@ export type IconKey =
   | "chart"
   | "tower"
   | "sword"
-  | "controller";
+  | "controller"
+  | "quiz";
 
 export interface HighScoreEntry {
   player: string;

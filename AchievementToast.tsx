@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { GAMES } from "../data/games";
+import { CABINET_GAMES, FEATURED_GAME_ID, getGame } from "../data/games";
 import { ACHIEVEMENTS } from "../data/achievements";
 import type { GameId } from "../types/game";
 import { useArcade } from "../context/ArcadeContext";
 import { CabinetCard } from "./CabinetCard";
+import { CabinetIcon } from "./CabinetIcon";
 import { SettingsPanel } from "./SettingsPanel";
 import { play, unlockAudio } from "../utils/audio";
 
@@ -76,6 +77,42 @@ export function ArcadeShell({ onPlay }: Props) {
         </div>
       </header>
 
+      {(() => {
+        const trivia = getGame(FEATURED_GAME_ID);
+        if (!trivia) return null;
+        const best = bestOf(trivia.id);
+        return (
+          <section className="featured" aria-label="Featured game">
+            <button
+              className="featured-tile"
+              style={{ ["--accent" as string]: trivia.accent }}
+              onClick={() => {
+                unlockAudio();
+                play("click");
+                onPlay(trivia.id as GameId);
+              }}
+            >
+              <span className="featured-badge">Featured</span>
+              <div className="featured-main">
+                <span className="featured-icon">
+                  <CabinetIcon icon={trivia.icon} size={40} />
+                </span>
+                <div className="featured-text">
+                  <h2 className="featured-title">{trivia.title}</h2>
+                  <p className="featured-tag">{trivia.blurb}</p>
+                </div>
+              </div>
+              <div className="featured-foot">
+                <span className="featured-best">
+                  {best != null ? `Best ${best.toLocaleString()}` : "10 questions · 15s each"}
+                </span>
+                <span className="featured-cta">Play ▸</span>
+              </div>
+            </button>
+          </section>
+        );
+      })()}
+
       <section className="daily" aria-label="Daily challenge">
         <span className="daily-tag">Daily Challenge</span>
         <span className="daily-text">{daily}</span>
@@ -83,7 +120,7 @@ export function ArcadeShell({ onPlay }: Props) {
       </section>
 
       <section className="cabinets" aria-label="Game cabinets">
-        {GAMES.map((g) => (
+        {CABINET_GAMES.map((g) => (
           <CabinetCard key={g.id} game={g} best={bestOf(g.id)} onPlay={onPlay} />
         ))}
       </section>

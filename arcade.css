@@ -3,18 +3,34 @@ import { ArcadeShell } from "./components/ArcadeShell";
 import { GameFrame } from "./components/GameFrame";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AchievementToast } from "./components/AchievementToast";
+import { Trivia } from "./games/trivia/Trivia";
 import { DefectHunter } from "./games/defect-hunter/DefectHunter";
 import { MoltenPinball } from "./games/molten-pinball/MoltenPinball";
 import { ScrapMonsterDefense } from "./games/scrap-defense/ScrapMonsterDefense";
+import { FoundryRush } from "./games/foundry-rush/FoundryRush";
+import { CoreBoxBlitz } from "./games/core-box-blitz/CoreBoxBlitz";
+import { ForkliftFrenzy } from "./games/forklift-frenzy/ForkliftFrenzy";
+import { SpcCommander } from "./games/spc-commander/SpcCommander";
+import { ShiftBossTycoon } from "./games/shift-boss-tycoon/ShiftBossTycoon";
+import { QualityQuest } from "./games/quality-quest/QualityQuest";
+import { BreakroomBattle } from "./games/breakroom-battle/BreakroomBattle";
 import { getGame } from "./data/games";
 import type { GameId } from "./types/game";
 import { unlockAudio } from "./utils/audio";
 
-// Live cabinets -> their components. "Soon" cabinets have no entry here.
+// Every cabinet -> its component.
 const GAME_COMPONENTS: Partial<Record<GameId, ComponentType>> = {
+  "foundry-trivia": Trivia,
   "defect-hunter": DefectHunter,
   "molten-pinball": MoltenPinball,
   "scrap-defense": ScrapMonsterDefense,
+  "foundry-rush": FoundryRush,
+  "core-box-blitz": CoreBoxBlitz,
+  "forklift-frenzy": ForkliftFrenzy,
+  "spc-commander": SpcCommander,
+  "shift-boss-tycoon": ShiftBossTycoon,
+  "quality-quest": QualityQuest,
+  "breakroom-battle": BreakroomBattle,
 };
 
 export default function App() {

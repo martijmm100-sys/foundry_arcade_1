@@ -1,142 +1,231 @@
-# Foundry Arcade: Quality Command
+import { useEffect, useRef, useState } from "react";
+import { useArcade } from "../../context/ArcadeContext";
+import { ShiftSummary } from "../../components/ShiftSummary";
+import { Confetti } from "../../components/Effects";
+import { play } from "../../utils/audio";
+import { formatScore } from "../../utils/scoring";
 
-An industrial-themed browser arcade hub. Three playable cabinets, seven "coming
-soon" placeholders, local high scores, achievements, and a settings panel —
-built with **Vite + React + TypeScript**, plain CSS, and the HTML5 Canvas. No
-backend, no paid APIs, no external assets. Scores and badges live in the
-browser's `localStorage`.
+type Phase = "ready" | "playing" | "over";
 
-> **Work-safe note:** all content is synthetic and foundry-*inspired*. There are
-> no real company names, logos, trademarks, or proprietary data anywhere in the
-> project.
+const GAME_ID = "shift-boss-tycoon";
+const SHIFT_SECONDS = 90;
+const TICK_MS = 100;
 
----
+interface UpgradeDef {
+  key: "pourer" | "furnace" | "overtime";
+  name: string;
+  desc: string;
+  baseCost: number;
+  mult: number;
+  apply: (s: Stats) => void;
+}
 
-## What's inside
+interface Stats {
+  clickPower: number;
+  autoRate: number; // units/sec
+}
 
-| Cabinet | Type | Status |
-| --- | --- | --- |
-| **Defect Hunter** | Reaction / inspection (tap defective castings on a conveyor) | Live |
-| **Molten Metal Pinball** | Physics pinball with a 3-gate jackpot | Live |
-| **Scrap Monster Defense** | Tower defense over five waves + a boss | Live |
-| Foundry Rush, Core-Box Blitz, Forklift Frenzy, SPC Commander, Shift-Boss Tycoon, Quality Quest, Breakroom Battle | — | Coming soon (locked) |
+const UPGRADES: UpgradeDef[] = [
+  { key: "pourer", name: "Hire Pourer", desc: "+1 per pour", baseCost: 25, mult: 1.45, apply: (s) => (s.clickPower += 1) },
+  { key: "furnace", name: "Add Furnace", desc: "+2 units/sec", baseCost: 60, mult: 1.5, apply: (s) => (s.autoRate += 2) },
+  { key: "overtime", name: "Overtime Crew", desc: "+8 units/sec", baseCost: 300, mult: 1.6, apply: (s) => (s.autoRate += 8) },
+];
 
-Shared systems: cross-game leaderboards, a 10-badge trophy case (including a
-"play all three" unlock), synthesized sound (Web Audio — no files), a
-reduced-motion toggle, and a reset-progress control.
+function rankFor(total: number): string {
+  if (total >= 3000) return "Plant Magnate";
+  if (total >= 1500) return "Shift Boss";
+  if (total >= 600) return "Lead Hand";
+  return "Rookie";
+}
 
----
+interface Summary {
+  total: number;
+  rank: string;
+  isHigh: boolean;
+  date: string;
+}
 
-## 1. Install
+export function ShiftBossTycoon() {
+  const { submitScore, unlockAchievement } = useArcade();
 
-Requires **Node.js 18+** (Node 20 LTS recommended).
+  const [phase, setPhase] = useState<Phase>("ready");
+  const [bank, setBank] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<Stats>({ clickPower: 1, autoRate: 0 });
+  const [levels, setLevels] = useState<Record<string, number>>({ pourer: 0, furnace: 0, overtime: 0 });
+  const [timeLeft, setTimeLeft] = useState(SHIFT_SECONDS);
+  const [summary, setSummary] = useState<Summary | null>(null);
 
-```bash
-npm install
-```
+  const bankRef = useRef(0);
+  const totalRef = useRef(0);
+  const statsRef = useRef<Stats>({ clickPower: 1, autoRate: 0 });
+  const elapsedRef = useRef(0);
+  const moguledRef = useRef(false);
 
-## 2. Run locally
+  useEffect(() => {
+    unlockAchievement("first-clock-in");
+  }, [unlockAchievement]);
 
-```bash
-npm run dev        # start the Vite dev server (hot reload)
-```
+  const finish = (totalCast: number) => {
+    const rank = rankFor(totalCast);
+    const result = submitScore(GAME_ID, totalCast, rank);
+    if (rank === "Plant Magnate") unlockAchievement("shift-legend");
+    setSummary({ total: totalCast, rank, isHigh: result.isHighScore, date: result.date });
+    setPhase("over");
+    play("good");
+  };
 
-Open the printed URL (usually `http://localhost:5173`).
+  // Master loop: auto production + clock.
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const t = window.setInterval(() => {
+      const dt = TICK_MS / 1000;
+      const gain = statsRef.current.autoRate * dt;
+      bankRef.current += gain;
+      totalRef.current += gain;
+      elapsedRef.current += dt;
 
-Before deploying, always do a production build + preview — it catches anything
-the dev server is lenient about:
+      if (!moguledRef.current && totalRef.current >= 1000) {
+        moguledRef.current = true;
+        unlockAchievement("floor-mogul");
+      }
 
-```bash
-npm run build      # type-checks (tsc -b) then builds to dist/
-npm run preview    # serves the built dist/ exactly as production will
-```
+      const remaining = Math.max(0, SHIFT_SECONDS - elapsedRef.current);
+      setBank(Math.floor(bankRef.current));
+      setTotal(Math.floor(totalRef.current));
+      setTimeLeft(Math.ceil(remaining));
 
-## 3. Deploy to Cloudflare Pages
+      if (remaining <= 0) {
+        window.clearInterval(t);
+        finish(Math.floor(totalRef.current));
+      }
+    }, TICK_MS);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
-This project is configured for Cloudflare Pages (relative asset base, static
-`dist/` output). You deploy with Wrangler.
+  const start = () => {
+    bankRef.current = 0;
+    totalRef.current = 0;
+    statsRef.current = { clickPower: 1, autoRate: 0 };
+    elapsedRef.current = 0;
+    moguledRef.current = false;
+    setBank(0);
+    setTotal(0);
+    setStats({ clickPower: 1, autoRate: 0 });
+    setLevels({ pourer: 0, furnace: 0, overtime: 0 });
+    setTimeLeft(SHIFT_SECONDS);
+    setSummary(null);
+    setPhase("playing");
+  };
 
-```bash
-# one-time: authenticate this machine with your Cloudflare account
-npx wrangler login
+  const pour = () => {
+    if (phase !== "playing") return;
+    const p = statsRef.current.clickPower;
+    bankRef.current += p;
+    totalRef.current += p;
+    setBank(Math.floor(bankRef.current));
+    setTotal(Math.floor(totalRef.current));
+    play("click");
+  };
 
-# one-time: create the Pages project (first deploy can also create it)
-npx wrangler pages project create foundry-arcade-quality-command
+  const costFor = (u: UpgradeDef) => Math.round(u.baseCost * Math.pow(u.mult, levels[u.key]));
 
-# build + deploy
-npm run deploy:cloudflare
-```
+  const buy = (u: UpgradeDef) => {
+    if (phase !== "playing") return;
+    const cost = costFor(u);
+    if (bankRef.current < cost) {
+      play("bad");
+      return;
+    }
+    bankRef.current -= cost;
+    u.apply(statsRef.current);
+    setBank(Math.floor(bankRef.current));
+    setStats({ ...statsRef.current });
+    setLevels((l) => ({ ...l, [u.key]: l[u.key] + 1 }));
+    play("good");
+  };
 
-`deploy:cloudflare` runs `npm run build` and then
-`npx wrangler pages deploy dist --project-name foundry-arcade-quality-command`.
+  return (
+    <div className="tyc">
+      {phase === "playing" && (
+        <>
+          <div className="tyc-hud">
+            <div className="hud-block">
+              <span className="hud-label">Cast total</span>
+              <span className="hud-value">{formatScore(total)}</span>
+            </div>
+            <div className="hud-block">
+              <span className="hud-label">Bank</span>
+              <span className="hud-value">{formatScore(bank)}</span>
+            </div>
+            <div className="hud-block">
+              <span className="hud-label">Auto/sec</span>
+              <span className="hud-value">{stats.autoRate}</span>
+            </div>
+            <div className={`hud-block ${timeLeft <= 10 ? "hud-jackpot" : ""}`}>
+              <span className="hud-label">Shift</span>
+              <span className="hud-value">{timeLeft}s</span>
+            </div>
+          </div>
 
-> Do **not** paste Cloudflare API tokens into a chat or commit them. `wrangler
-> login` handles auth in your own browser/terminal. For CI later, set
-> `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as environment variables in
-> the CI secret store.
+          <button className="tyc-pour" onClick={pour} aria-label="Pour metal">
+            <span className="tyc-pour-label">POUR</span>
+            <span className="tyc-pour-sub">+{stats.clickPower} / tap</span>
+          </button>
 
-Prefer the dashboard instead of the CLI? Connect the repo in **Cloudflare Pages
-→ Create project**, set **Build command** = `npm run build` and **Output
-directory** = `dist`.
+          <div className="tyc-upgrades">
+            {UPGRADES.map((u) => {
+              const cost = costFor(u);
+              const afford = bank >= cost;
+              return (
+                <button
+                  key={u.key}
+                  className={`tyc-upgrade ${afford ? "" : "tyc-cant"}`}
+                  onClick={() => buy(u)}
+                >
+                  <span className="tyc-up-name">{u.name}</span>
+                  <span className="tyc-up-desc">{u.desc}</span>
+                  <span className="tyc-up-foot">
+                    <span className="tyc-up-cost">{formatScore(cost)}</span>
+                    <span className="tyc-up-lvl">Lv {levels[u.key]}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
 
----
+      {phase === "ready" && (
+        <div className="overlay-card">
+          <h2>Shift Boss Tycoon</h2>
+          <p>
+            Tap <b>POUR</b> to cast units. Reinvest your bank into pourers, furnaces, and overtime crews to
+            grow automatic production. You have one 90-second shift — maximize total units cast.
+          </p>
+          <button className="btn btn-primary" onClick={start}>
+            Start the Shift
+          </button>
+        </div>
+      )}
 
-## Test checklist (run after `npm run preview` and again on the live URL)
+      {phase === "over" && summary && (
+        <ShiftSummary
+          title="Shift Over"
+          win={summary.total >= 600}
+          rows={[
+            { k: "Units cast", v: formatScore(summary.total), hi: true },
+            { k: "Rank", v: summary.rank, hi: true },
+          ]}
+          isHigh={summary.isHigh}
+          gameId={GAME_ID}
+          highlightDate={summary.date}
+          onAgain={start}
+        />
+      )}
 
-- [ ] Lobby loads; three cabinets are lit, seven read **COMING SOON**.
-- [ ] Set an operator name in **Settings**; it appears on score rows.
-- [ ] **Defect Hunter:** taps register, combo climbs, RISK parts pay a bonus, a wrong tap dings accuracy, round ends at the timer.
-- [ ] **Molten Metal Pinball:** flippers respond to `←/→` (and `A`/`L`); on a phone, tapping the left/right half of the table flips; lighting all three gates starts the jackpot; game ends after 3 balls.
-- [ ] **Scrap Monster Defense:** select a tower, place it on open floor (not the channel), **Send Wave** spawns enemies, towers fire, integrity drops on a leak, surviving wave 5 shows **Line Held**.
-- [ ] A **new high score** highlights its row and shows the banner.
-- [ ] An achievement toast fires (e.g., *First Clock-In*) and the Trophy Case updates.
-- [ ] **Reduced motion** ON calms the conveyor/effects; **Sound** toggle works.
-- [ ] **Reset all** clears scores and badges.
-- [ ] Reload the page — scores/badges/name persist.
-- [ ] Resize / open on a phone — layout and canvases scale without clipping.
-
----
-
-## Known limitations & next-upgrade ideas
-
-- **Local-only data.** Scores live in this browser's `localStorage`; they don't
-  sync across devices and clear if site data is wiped. A shared leaderboard
-  would need a small backend (e.g., Cloudflare KV/D1 + a Pages Function).
-- **Fonts load from Google Fonts.** Offline or blocked-CDN environments fall
-  back to system fonts (still fully usable). To fully self-host, drop the font
-  files into the project and swap the `<link>` in `index.html` for `@font-face`.
-- **Pinball is a hand-tuned sim,** not a rigid-body engine — it favors feel over
-  exact physics. Tuning constants live in `src/games/molten-pinball/pinballLogic.ts`.
-- **The seven locked cabinets are placeholders.** Each new game is a self-contained
-  folder under `src/games/` plus an entry in `src/data/games.ts` and the
-  `GAME_COMPONENTS` map in `src/App.tsx`.
-- **Daily Challenge is cosmetic** (rotates by date; not yet scored).
-- A few cosmetic styles use modern CSS (`color-mix`, `aspect-ratio`); fine on
-  current evergreen browsers, which is the intended target.
-
----
-
-## Project structure
-
-```
-foundry-arcade-quality-command/
-├─ index.html                 # entry HTML, font links, favicon
-├─ package.json               # scripts + deps
-├─ tsconfig*.json             # strict TypeScript config
-├─ vite.config.ts             # base:"./" for Pages, dist output
-├─ README.md
-├─ GLOSSARY.md                # in-game + technical terms
-└─ src/
-   ├─ main.tsx                # React root + providers + global CSS
-   ├─ App.tsx                 # lobby <-> game routing
-   ├─ types/game.ts           # shared types
-   ├─ data/                   # games catalog + achievements catalog
-   ├─ utils/                  # storage, audio, scoring
-   ├─ context/                # ArcadeProvider (scores, badges, settings, toasts)
-   ├─ components/             # shell, cabinet, frame, scoreboard, settings, effects…
-   ├─ games/
-   │  ├─ defect-hunter/       # logic + component
-   │  ├─ molten-pinball/      # logic + component (canvas)
-   │  └─ scrap-defense/       # logic + component (canvas)
-   └─ styles/                 # global.css + arcade.css
-```
+      <Confetti active={phase === "over" && !!summary?.isHigh} />
+    </div>
+  );
+}

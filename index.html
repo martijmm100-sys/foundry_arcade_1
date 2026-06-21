@@ -1,30 +1,312 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0c0d10" />
-    <meta name="description" content="Foundry Arcade: Quality Command - an industrial arcade game hub. Synthetic data only." />
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useArcade } from "../../context/ArcadeContext";
+import { ShiftSummary } from "../../components/ShiftSummary";
+import { Confetti } from "../../components/Effects";
+import { play } from "../../utils/audio";
+import { formatScore } from "../../utils/scoring";
 
-    <!-- Inline SVG favicon: molten gear, no external asset -->
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230c0d10'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='%23ffcd11' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23ff7a18'/%3E%3C/svg%3E"
-    />
+type Phase = "ready" | "playing" | "over";
 
-    <!-- Display + UI + data faces. Loaded at runtime by the browser;
-         falls back to system fonts if offline. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap"
-      rel="stylesheet"
-    />
+const GAME_ID = "spc-commander";
+const TOTAL_POINTS = 36;
+const INTERVAL_MS = 1300;
+const VIOLATION_PROB = 0.24;
+const VISIBLE = 22;
+const CW = 640;
+const CH = 360;
+const SIGMA_RANGE = 4.2;
 
-    <title>Foundry Arcade: Quality Command</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+interface Point {
+  v: number;
+  violation: boolean;
+  flagged: boolean;
+}
+
+function gauss(): number {
+  // Sum of four uniforms → approx normal, sd ~1 after scaling.
+  return (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.7;
+}
+
+function makePoint(allowViolation: boolean): Point {
+  if (allowViolation && Math.random() < VIOLATION_PROB) {
+    const mag = 3.2 + Math.random() * 1.3;
+    return { v: Math.random() < 0.5 ? -mag : mag, violation: true, flagged: false };
+  }
+  let v = gauss();
+  if (v > 2.7) v = 2.7;
+  if (v < -2.7) v = -2.7;
+  return { v, violation: false, flagged: false };
+}
+
+function rankFor(caught: number): string {
+  if (caught >= 12) return "Process Owner";
+  if (caught >= 8) return "Line Analyst";
+  if (caught >= 4) return "Operator";
+  return "Trainee";
+}
+
+interface Summary {
+  score: number;
+  caught: number;
+  missed: number;
+  falseFlags: number;
+  rank: string;
+  isHigh: boolean;
+  date: string;
+}
+
+export function SpcCommander() {
+  const { submitScore, unlockAchievement, state } = useArcade();
+  const reduced = state.settings.reducedMotion;
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pointsRef = useRef<Point[]>([]);
+  const countRef = useRef(0);
+  const caughtRef = useRef(0);
+  const missedRef = useRef(0);
+  const falseRef = useRef(0);
+  const endTimer = useRef<number | null>(null);
+  const finishRef = useRef<() => void>(() => {});
+
+  const [phase, setPhase] = useState<Phase>("ready");
+  const [, setVersion] = useState(0);
+  const [summary, setSummary] = useState<Summary | null>(null);
+
+  useEffect(() => {
+    unlockAchievement("first-clock-in");
+  }, [unlockAchievement]);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, CW, CH);
+    ctx.fillStyle = "#0d0f13";
+    ctx.fillRect(0, 0, CW, CH);
+
+    const padX = 30;
+    const midY = CH / 2;
+    const pxSig = (CH / 2 - 30) / SIGMA_RANGE;
+    const yOf = (v: number) => midY - v * pxSig;
+
+    // Zones (±1, ±2 subtle bands)
+    ctx.fillStyle = "rgba(47,208,122,0.05)";
+    ctx.fillRect(0, yOf(1), CW, yOf(-1) - yOf(1));
+
+    // Limit + center lines
+    const line = (v: number, color: string, dash: number[]) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      ctx.moveTo(0, yOf(v));
+      ctx.lineTo(CW, yOf(v));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    };
+    line(3, "#ff5a4d", [6, 6]);
+    line(-3, "#ff5a4d", [6, 6]);
+    line(0, "#4a4f5a", []);
+
+    ctx.font = "11px 'Share Tech Mono', monospace";
+    ctx.fillStyle = "#ff5a4d";
+    ctx.fillText("UCL +3σ", 6, yOf(3) - 5);
+    ctx.fillText("LCL -3σ", 6, yOf(-3) + 14);
+
+    const slice = pointsRef.current.slice(-VISIBLE);
+    const step = (CW - padX * 2) / (VISIBLE - 1);
+
+    // Connecting line
+    ctx.strokeStyle = "#6b7280";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    slice.forEach((p, i) => {
+      const x = padX + i * step;
+      const y = yOf(p.v);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Points
+    slice.forEach((p, i) => {
+      const x = padX + i * step;
+      const y = yOf(p.v);
+      const isLatest = i === slice.length - 1;
+      if (p.violation && !p.flagged && isLatest) {
+        ctx.beginPath();
+        ctx.arc(x, y, 11, 0, Math.PI * 2);
+        ctx.strokeStyle = "#ffcd11";
+        ctx.lineWidth = 2.5;
+        if (!reduced) {
+          ctx.shadowColor = "#ffcd11";
+          ctx.shadowBlur = 12;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = p.flagged ? "#2fd07a" : p.violation ? "#ff5a4d" : "#4ea8ff";
+      ctx.fill();
+    });
+  }, [reduced]);
+
+  useEffect(() => {
+    draw();
+  });
+
+  const finish = useCallback(() => {
+    // Account for the final point if it was an unflagged signal.
+    const last = pointsRef.current[pointsRef.current.length - 1];
+    if (last && last.violation && !last.flagged) missedRef.current += 1;
+    const caught = caughtRef.current;
+    const score = Math.max(0, caught * 150 - missedRef.current * 100 - falseRef.current * 60);
+    const rank = rankFor(caught);
+    const result = submitScore(GAME_ID, score, rank);
+    if (caught >= 10) unlockAchievement("chart-sentinel");
+    if (rank === "Process Owner") unlockAchievement("shift-legend");
+    setSummary({
+      score,
+      caught,
+      missed: missedRef.current,
+      falseFlags: falseRef.current,
+      rank,
+      isHigh: result.isHighScore,
+      date: result.date,
+    });
+    setPhase("over");
+    play("good");
+  }, [submitScore, unlockAchievement]);
+
+  finishRef.current = finish;
+
+  // Point stream.
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const t = window.setInterval(() => {
+      if (countRef.current >= TOTAL_POINTS) {
+        window.clearInterval(t);
+        endTimer.current = window.setTimeout(() => finishRef.current(), 1100);
+        return;
+      }
+      const prev = pointsRef.current[pointsRef.current.length - 1];
+      if (prev && prev.violation && !prev.flagged) missedRef.current += 1;
+      pointsRef.current.push(makePoint(countRef.current > 0));
+      countRef.current += 1;
+      setVersion((v) => v + 1);
+    }, INTERVAL_MS);
+    return () => window.clearInterval(t);
+  }, [phase]);
+
+  useEffect(() => {
+    return () => {
+      if (endTimer.current) window.clearTimeout(endTimer.current);
+    };
+  }, []);
+
+  const flag = () => {
+    if (phase !== "playing") return;
+    const pts = pointsRef.current;
+    const last = pts[pts.length - 1];
+    if (!last) return;
+    if (last.violation && !last.flagged) {
+      last.flagged = true;
+      caughtRef.current += 1;
+      play("good");
+    } else {
+      falseRef.current += 1;
+      play("bad");
+    }
+    setVersion((v) => v + 1);
+  };
+
+  const start = () => {
+    pointsRef.current = [makePoint(false)];
+    countRef.current = 1;
+    caughtRef.current = 0;
+    missedRef.current = 0;
+    falseRef.current = 0;
+    setSummary(null);
+    setVersion((v) => v + 1);
+    setPhase("playing");
+  };
+
+  const latest = pointsRef.current[pointsRef.current.length - 1];
+  const signalLive = phase === "playing" && !!latest && latest.violation && !latest.flagged;
+
+  return (
+    <div className="spc">
+      {phase === "playing" && (
+        <div className="spc-hud">
+          <div className="hud-block">
+            <span className="hud-label">Point</span>
+            <span className="hud-value">
+              {countRef.current}/{TOTAL_POINTS}
+            </span>
+          </div>
+          <div className="hud-block">
+            <span className="hud-label">Caught</span>
+            <span className="hud-value">{caughtRef.current}</span>
+          </div>
+          <div className="hud-block">
+            <span className="hud-label">Missed</span>
+            <span className="hud-value">{missedRef.current}</span>
+          </div>
+          <div className="hud-block">
+            <span className="hud-label">False</span>
+            <span className="hud-value">{falseRef.current}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="spc-wrap">
+        <canvas ref={canvasRef} width={CW} height={CH} className="spc-canvas" aria-label="Control chart" />
+
+        {phase === "ready" && (
+          <div className="overlay">
+            <div className="overlay-card">
+              <h2>SPC Commander</h2>
+              <p>
+                Points stream onto the control chart one at a time. When the newest point breaks a control limit
+                (beyond ±3σ), hit <b>Flag Signal</b> before the next point lands. Catch signals, avoid false
+                alarms, and don't miss a real one.
+              </p>
+              <button className="btn btn-primary" onClick={start}>
+                Start Monitoring
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === "over" && summary && (
+          <div className="overlay">
+            <ShiftSummary
+              title="Monitoring Report"
+              win={summary.caught >= 8}
+              rows={[
+                { k: "Score", v: formatScore(summary.score), hi: true },
+                { k: "Signals caught", v: String(summary.caught) },
+                { k: "Missed", v: String(summary.missed) },
+                { k: "False alarms", v: String(summary.falseFlags) },
+                { k: "Rank", v: summary.rank, hi: true },
+              ]}
+              isHigh={summary.isHigh}
+              gameId={GAME_ID}
+              highlightDate={summary.date}
+              onAgain={start}
+            />
+          </div>
+        )}
+      </div>
+
+      {phase === "playing" && (
+        <button className={`btn spc-flag ${signalLive ? "spc-flag-live" : ""}`} onClick={flag}>
+          {signalLive ? "⚠ Flag Signal" : "Flag Signal"}
+        </button>
+      )}
+
+      <Confetti active={phase === "over" && !!summary?.isHigh} />
+    </div>
+  );
+}

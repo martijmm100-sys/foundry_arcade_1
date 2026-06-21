@@ -699,3 +699,641 @@
   25% { transform: translateX(-6px); }
   75% { transform: translateX(6px); }
 }
+
+/* ========================================================================
+   NEW HUD CONTAINERS (share the flex layout of the original game HUDs)
+   ======================================================================== */
+.trivia-hud,
+.cbb-hud,
+.tyc-hud,
+.qq-hud,
+.spc-hud,
+.rush-hud,
+.ff-hud,
+.brk-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+  padding: 0.6rem 0.4rem;
+  width: 100%;
+}
+
+/* Generic standalone start/end card centering for DOM games. */
+.trivia,
+.cbb,
+.tyc,
+.qq {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.trivia .overlay-card,
+.cbb .overlay-card,
+.tyc .overlay-card,
+.qq .overlay-card {
+  margin: 1.2rem auto;
+}
+
+/* Shared slim timer bar */
+.trivia-timerbar,
+.qq-timerbar {
+  width: 100%;
+  max-width: 520px;
+  height: 8px;
+  border-radius: 5px;
+  background: var(--line);
+  overflow: hidden;
+  margin: 0.2rem auto 0.8rem;
+}
+.trivia-timerbar span,
+.qq-timerbar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), var(--yellow));
+  transition: width 0.2s linear;
+}
+
+/* ========================================================================
+   FEATURED TILE (Trivia at the top of the lobby)
+   ======================================================================== */
+.featured {
+  margin: 0 0 1rem;
+}
+.featured-tile {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line-2));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--panel)), var(--panel));
+  box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 22%, transparent), var(--shadow);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.featured-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 34px color-mix(in srgb, var(--accent) 34%, transparent), var(--shadow);
+}
+.featured-badge {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.9rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #111;
+  background: var(--accent);
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+}
+.featured-main {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.featured-icon {
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line);
+}
+.featured-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  line-height: 1.1;
+}
+.featured-tag {
+  margin-top: 0.25rem;
+  color: var(--ink-dim);
+  font-size: 0.86rem;
+}
+.featured-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  padding-top: 0.7rem;
+}
+.featured-best {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+.featured-cta {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+/* ========================================================================
+   GAME - Foundry Trivia
+   ======================================================================== */
+.trivia-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  padding: 1.2rem 1.2rem 1.4rem;
+  box-shadow: var(--shadow);
+}
+.trivia-cat {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--yellow);
+}
+.trivia-q {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  margin: 0.5rem 0 1rem;
+}
+.trivia-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.trivia-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.trivia-choice:hover:not(:disabled) {
+  border-color: var(--yellow);
+}
+.trivia-choice:disabled {
+  cursor: default;
+}
+.trivia-key {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+.trivia-correct {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 18%, var(--panel-2));
+}
+.trivia-correct .trivia-key {
+  background: var(--green);
+  color: #06231a;
+}
+.trivia-wrong {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 16%, var(--panel-2));
+}
+.trivia-muted {
+  opacity: 0.55;
+}
+.trivia-brief b {
+  color: var(--ink);
+}
+
+/* ========================================================================
+   GAME - Core Box Blitz
+   ======================================================================== */
+.cbb-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 440px;
+  margin: 0.4rem auto 0;
+}
+.cbb-card {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.cbb-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  transition: opacity 0.16s ease;
+}
+.cbb-back {
+  background: linear-gradient(135deg, var(--panel-2), var(--bg-2));
+  border: 1px solid var(--line-2);
+}
+.cbb-back::after {
+  content: "?";
+  color: var(--ink-faint);
+  font-size: 1.2rem;
+}
+.cbb-front {
+  background: color-mix(in srgb, var(--blue) 22%, var(--panel));
+  border: 1px solid var(--blue);
+  color: #eaf4ff;
+  opacity: 0;
+}
+.cbb-up .cbb-front {
+  opacity: 1;
+}
+.cbb-up .cbb-back {
+  opacity: 0;
+}
+.cbb-matched .cbb-front {
+  background: color-mix(in srgb, var(--green) 22%, var(--panel));
+  border-color: var(--green);
+  color: #e7fff2;
+}
+
+/* ========================================================================
+   GAME - Shift Boss Tycoon
+   ======================================================================== */
+.tyc-pour {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  margin: 0.6rem auto 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  cursor: pointer;
+  color: #1a1205;
+  background: radial-gradient(circle at 38% 32%, #ffe27a, var(--orange));
+  border: 4px solid #1a1d24;
+  box-shadow: 0 0 30px rgba(255, 122, 24, 0.45);
+  transition: transform 0.06s ease;
+  user-select: none;
+}
+.tyc-pour:active {
+  transform: scale(0.96);
+}
+.tyc-pour-label {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: 0.06em;
+}
+.tyc-pour-sub {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.tyc-upgrades {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
+  width: 100%;
+  max-width: 520px;
+}
+.tyc-upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.tyc-upgrade:hover {
+  border-color: var(--yellow);
+}
+.tyc-cant {
+  opacity: 0.55;
+}
+.tyc-up-name {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+}
+.tyc-up-desc {
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+}
+.tyc-up-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+.tyc-up-cost {
+  color: var(--yellow);
+}
+.tyc-up-lvl {
+  color: var(--ink-faint);
+}
+
+/* ========================================================================
+   GAME - Quality Quest
+   ======================================================================== */
+.qq {
+  position: relative;
+  border-radius: var(--radius-lg);
+  transition: background 0.15s ease;
+}
+.qq-flash-good {
+  background: radial-gradient(circle at 50% 40%, rgba(47, 208, 122, 0.16), transparent 70%);
+}
+.qq-flash-bad {
+  background: radial-gradient(circle at 50% 40%, rgba(255, 90, 77, 0.18), transparent 70%);
+}
+.qq-ticket {
+  width: 100%;
+  max-width: 460px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  padding: 1.6rem 1.2rem;
+  box-shadow: var(--shadow);
+}
+.qq-ticket-tag {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.qq-condition {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 1.4rem;
+  line-height: 1.3;
+  margin-top: 0.6rem;
+}
+.qq-bins {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.7rem;
+  width: 100%;
+  max-width: 460px;
+  margin-top: 1rem;
+}
+.qq-bin {
+  padding: 1rem 0.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.08s ease, border-color 0.12s ease;
+}
+.qq-bin:active {
+  transform: translateY(2px);
+}
+.qq-ship {
+  border-color: color-mix(in srgb, var(--green) 60%, var(--line-2));
+  color: var(--green);
+}
+.qq-rework {
+  border-color: color-mix(in srgb, var(--yellow) 60%, var(--line-2));
+  color: var(--yellow);
+}
+.qq-scrap {
+  border-color: color-mix(in srgb, var(--red) 60%, var(--line-2));
+  color: var(--red);
+}
+.qq-brief b {
+  color: var(--ink);
+}
+
+/* ========================================================================
+   GAME - SPC Commander
+   ======================================================================== */
+.spc {
+  width: 100%;
+  max-width: 660px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.spc-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.spc-canvas {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: #0d0f13;
+  box-shadow: var(--shadow);
+}
+.spc-flag {
+  margin-top: 0.9rem;
+  min-width: 200px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+}
+.spc-flag-live {
+  background: var(--yellow);
+  color: #1a1205;
+  border-color: var(--yellow);
+  box-shadow: 0 0 22px rgba(255, 205, 17, 0.5);
+}
+
+/* ========================================================================
+   GAME - Foundry Rush
+   ======================================================================== */
+.rush {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.rush-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.rush-canvas {
+  display: block;
+  width: auto;
+  height: min(60vh, 600px);
+  max-width: 100%;
+  aspect-ratio: 420 / 620;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: #0d0f13;
+  box-shadow: 0 0 26px rgba(255, 90, 77, 0.18), var(--shadow);
+  touch-action: none;
+}
+.rush-pad {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  width: 100%;
+  max-width: 420px;
+  margin-top: 0.8rem;
+}
+.rush-key {
+  flex: 1;
+  height: 64px;
+  font-size: 1.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+.rush-key:active {
+  background: var(--panel);
+}
+
+/* ========================================================================
+   GAME - Forklift Frenzy
+   ======================================================================== */
+.ff {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ff-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.ff-canvas {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 10 / 7;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: #0d0f13;
+  box-shadow: var(--shadow);
+}
+.ff-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(2, 56px);
+  gap: 6px;
+  justify-content: center;
+  margin-top: 0.8rem;
+}
+.ff-key {
+  font-size: 1.3rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ff-key:active {
+  background: var(--panel);
+}
+.ff-up {
+  grid-column: 2;
+  grid-row: 1;
+}
+.ff-left {
+  grid-column: 1;
+  grid-row: 2;
+}
+.ff-down {
+  grid-column: 2;
+  grid-row: 2;
+}
+.ff-right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+/* ========================================================================
+   GAME - Breakroom Battle
+   ======================================================================== */
+.brk {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.brk-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.brk-canvas {
+  display: block;
+  width: auto;
+  height: min(62vh, 600px);
+  max-width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: #0d0f13;
+  box-shadow: 0 0 26px rgba(78, 168, 255, 0.18), var(--shadow);
+  touch-action: none;
+}
+.brk-hint {
+  position: absolute;
+  bottom: 16%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.6);
+}
